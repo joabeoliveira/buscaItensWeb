@@ -1,0 +1,18 @@
+# Configurações do sistema
+.env
+config/database.php
+
+# Pastas de ambiente/XAMPP (caso existam)
+vendor/
+node_modules/
+.idea/
+.vscode/
+
+# Arquivos temporários e logs
+*.log
+/tmp/
+test_catmat.php
+
+# Sistema
+.DS_Store
+Thumbs.db

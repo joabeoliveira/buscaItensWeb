@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Catálogo de Materiais e Serviços</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- <link rel="stylesheet" href="style.css" /> --> 
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.5/dist/umd/supabase.min.js"></script>
+</head>
+
+<style>
+  body {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  padding: 40px 0; /* Aumenta o espaçamento vertical */
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Novo container para cada instância de busca */
+.search-instance {
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  padding: 30px;
+  margin-bottom: 40px; /* Adiciona espaço entre as caixas de busca */
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.header .logo {
+  margin-bottom: 15px;
+}
+
+.header h1 {
+  color: #2c3e50;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.header .subtitle {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.search-box {
+  margin-bottom: 20px;
+}
+
+.search-box .input-group-text {
+  background-color: #f8f9fa;
+  border-right: none;
+}
+
+.search-box .form-control {
+  border-left: none;
+  padding: 12px;
+}
+
+.search-box .form-control:focus {
+  box-shadow: none;
+  border-color: #ced4da;
+}
+
+.search-box .btn {
+  padding: 0 15px;
+}
+
+.results-container {
+  max-height: 400px; /* Reduz um pouco a altura máxima */
+  overflow-y: auto;
+  border-radius: 8px;
+}
+
+#listaSugestoesMaterial, #listaSugestoesServico {
+  border-radius: 8px !important;
+  border: 1px solid #e9ecef;
+}
+
+.list-group-item {
+  padding: 15px;
+  border-left: none;
+  border-right: none;
+  transition: all 0.2s ease;
+}
+
+.list-group-item:first-child {
+  border-top: none;
+}
+
+.list-group-item:last-child {
+  border-bottom: none;
+}
+
+.list-group-item:hover {
+  background-color: #f8f9fa;
+  transform: translateX(2px);
+}
+
+.item-code {
+  font-weight: 600;
+  color: #3498db;
+  font-size: 0.85rem;
+  margin-bottom: 5px;
+}
+
+.item-desc {
+  color: #2c3e50;
+  font-size: 0.95rem;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 10px; /* Reduz margem do topo */
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+/* Scrollbar personalizada */
+.results-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.results-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.results-container::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 10px;
+}
+
+.results-container::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+.icon-logo {
+  font-size: 2.5rem;
+  color: #3498db;
+  margin-bottom: 15px;
+}
+
+.item-match {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.input-group-text .search-hint {
+  font-size: 0.7rem;
+  margin-left: 5px;
+  opacity: 0.7;
+}
+</style>
+
+<body>
+  <div class="container">
+    <div class="search-instance">
+      <div class="header">
+        <i class="fas fa-boxes icon-logo"></i>
+        <h1>Catálogo CATMAT</h1>
+        <p class="subtitle">Busca Inteligente de Materiais</p>
+      </div>
+      <div class="input-group mb-3 search-box">
+        <span class="input-group-text">
+          <i class="fas fa-search"></i>
+          <span class="search-hint">+ para AND</span>
+        </span>
+        <input type="text" id="inputBuscaMaterial" class="form-control" 
+              placeholder="Digite termos (ex: seringa + 20ml + luer lock)" 
+              autocomplete="off" />
+        <button class="btn btn-outline-secondary" type="button" id="btnLimparMaterial">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="results-container">
+        <ul id="listaSugestoesMaterial" class="list-group"></ul>
+      </div>
+    </div>
+
+    <div class="search-instance">
+      <div class="header">
+        <i class="fas fa-concierge-bell icon-logo"></i>
+        <h1>Catálogo de Serviços</h1>
+        <p class="subtitle">Busca Inteligente de Serviços</p>
+      </div>
+      <div class="input-group mb-3 search-box">
+        <span class="input-group-text">
+          <i class="fas fa-search"></i>
+          <span class="search-hint">+ para AND</span>
+        </span>
+        <input type="text" id="inputBuscaServico" class="form-control" 
+              placeholder="Digite termos (ex: manutenção + ar condicionado)" 
+              autocomplete="off" />
+        <button class="btn btn-outline-secondary" type="button" id="btnLimparServico">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="results-container">
+        <ul id="listaSugestoesServico" class="list-group"></ul>
+      </div>
+    </div>
+
+    <div class="footer">
+      <small class="text-muted">© 2025 Sistema de Busca Integrada</small>
+    </div>
+  </div>
+
+     
+  <script>
+    
+    // Configuração do Supabase busque sua credencial e token para acessar seu projeto no supabase
+    const supabaseUrl = "https://brdbyfpgpzrxbbfsethm.supabase.co"; // <-- altere aqui
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJyZGJ5ZnBncHpyeGJiZnNldGhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NzM4MTQsImV4cCI6MjA4ODQ0OTgxNH0.6x9X6XRfWsBSOygKup87WAGx-E2GQRoYzDOiLJh0qk4"; // <-- altere aqui
+    // modificar somente acima
+
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+
+    // Função que consome o supabase
+    function setupSearchComponent(config) {
+      const inputBusca = document.getElementById(config.inputId);
+      const listaSugestoes = document.getElementById(config.listId);
+      const btnLimpar = document.getElementById(config.clearButtonId);
+      let timeoutId;
+
+      btnLimpar.addEventListener('click', () => {
+        inputBusca.value = '';
+        listaSugestoes.innerHTML = '';
+        inputBusca.focus();
+      });
+
+      inputBusca.addEventListener('input', () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          buscarSugestoes(inputBusca.value, config, inputBusca);
+        }, 300);
+      });
+    }
+
+    async function buscarSugestoes(query, config, inputElement) {
+  const listaSugestoes = document.getElementById(config.listId);
+
+  query = query.trim();
+
+  if (query.length < 2 || query === '%') {
+    listaSugestoes.innerHTML = '';
+    return;
+  }
+
+      let consulta;
+      // Verifica se a busca é por código (apenas números)
+      if (/^\d+$/.test(query)) {
+          console.log(`Buscando por CÓDIGO (${config.type}): ${query}`);
+          // Note: 'codigo_busca' é o parâmetro esperado pela função 'get_descricao_by_catmat' (agora 'rpcCode')
+          consulta = supabase.rpc(config.rpcCode, { input_catmat: parseInt(query, 10) }); // Usar input_catmat e garantir que é um número
+      } else {
+          // Se for texto (com ou sem operadores '+'), sempre chama 'search_catalogo'
+          console.log(`Enviando para Supabase RPC (${config.rpcSingle}):`, query);
+          // A função 'search_catalogo' no SQL agora lida com o parseamento de '+'
+          consulta = supabase.rpc(config.rpcSingle, { search_term: query });
+      }
+      
+      
+      const { data, error } = await consulta;
+
+      if (error) {
+        console.error('Erro na busca:', error);
+        listaSugestoes.innerHTML = `<li class="list-group-item text-danger">Erro na busca (${config.type}).</li>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        listaSugestoes.innerHTML = `<li class="list-group-item">Nenhum item encontrado para: "${query}"</li>`;
+        return;
+      }
+
+      listaSugestoes.innerHTML = '';
+
+      const resultado = Array.isArray(data) ? data : (data ? [data] : []);
+
+    if (resultado.length === 0) {
+      listaSugestoes.innerHTML = `<li class="list-group-item">Nenhum item encontrado para: "${query}"</li>`;
+      return;
+    }
+      
+      listaSugestoes.innerHTML = '';
+      resultado.forEach(item => {
+        const codigo = item[config.codeField];
+        const descricao = item[config.descField];
+
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <div class="item-code">${codigo}</div>
+          <div class="item-desc">${descricao}</div>
+        `;
+        li.classList.add('list-group-item', 'd-flex', 'flex-column');
+        
+        li.addEventListener('click', () => {
+          inputElement.value = descricao;
+          listaSugestoes.innerHTML = '';
+        });
+
+        listaSugestoes.appendChild(li);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // --- CONFIGURAÇÃO DE MATERIAL ---
+      // Garanta que esta seção esteja exatamente assim.
+      setupSearchComponent({
+        type: 'Material',
+        inputId: 'inputBuscaMaterial',
+        listId: 'listaSugestoesMaterial',
+        clearButtonId: 'btnLimparMaterial',
+        rpcSingle: 'search_catalogo', // <-- atenção precisa ser o mesmo nome da função no Supabase 
+        //rpcMulti: 'buscar_itens_multiplos_termos',
+        rpcCode: 'get_descricao_by_catmat', // <-- atenção precisa ser o mesmo nome da função no Supabase
+        codeField: 'codigo_catmat',
+        descField: 'descricao'
+      });
+
+      // --- CONFIGURAÇÃO DE SERVIÇO ---
+      setupSearchComponent({
+        type: 'Serviço',
+        inputId: 'inputBuscaServico',
+        listId: 'listaSugestoesServico',
+        clearButtonId: 'btnLimparServico',
+        rpcSingle: 'buscar_servicos_similares',
+        rpcMulti: 'buscar_servicos_multiplos_termos',
+        rpcCode: 'buscar_servico_por_codigo',
+        codeField: 'codigo_servico',
+        descField: 'descricao_servico'
+      });
+    });
+</script>
+
+</body>
+</html>
