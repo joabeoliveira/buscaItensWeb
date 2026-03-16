@@ -42,7 +42,7 @@ try {
         'total' => count($sugestoes),
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     
-} catch (Exception $e) {
+} catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Erro interno: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Erro interno: ' . $e->getMessage(), 'trace' => $e->getTraceAsString()]);
 }

@@ -27,23 +27,28 @@ class CatmatMatcher {
      * @param int    $limite     Quantidade de sugestões (default: 5)
      * @return array             Lista de sugestões com codigo_catmat, descricao, similaridade
      */
-    public function buscarSimilares($descricao, $limite = 5) {
+    public function buscarSimilares($descricao, $limite = 5, $embedding = null) {
         // Limpa a descrição para melhorar a busca
         $descricaoLimpa = $this->prepararDescricao($descricao);
         
         // Chama a função RPC do Supabase
         $endpoint = $this->supabaseUrl . '/rest/v1/rpc/buscar_catmat_similar';
         
-        $payload = json_encode([
+        // Tenta buscar o embedding (IA Vector) no microserviço Python local
+        $embedding = $this->gerarEmbeddingPython($descricaoLimpa);
+        
+        $params = [
             'p_descricao' => $descricaoLimpa,
-            'p_limit'     => $limite,
-        ]);
+            'p_limit'     => $limite
+        ];
+
+        if ($embedding) {
+            $params['p_embedding'] = $embedding;
+        }
+        
+        $payload = json_encode($params);
         
         $response = $this->request($endpoint, 'POST', $payload);
-        
-        if ($response === null) {
-            throw new Exception("Erro de comunicação com o Supabase ou timeout da consulta.");
-        }
         
         $data = json_decode($response, true);
         return is_array($data) ? $data : [];
@@ -99,6 +104,34 @@ class CatmatMatcher {
         
         return $descricao;
     }
+
+    /**
+     * Tenta conectar à API Python local para transformar a descrição em vetor de IA
+     */
+    private function gerarEmbeddingPython($texto) {
+        $ch = curl_init('http://127.0.0.1:5000/embed');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['texto' => $texto]));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2); // Exige resposta rápida (max 2 seg)
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 200 && $response) {
+            $data = json_decode($response, true);
+            if (isset($data['embedding'])) {
+                // Formato vetor PostgreSQL: "[0.1, 0.2, ...]"
+                return '[' . implode(',', $data['embedding']) . ']';
+            }
+        }
+        
+        // Se a API Python estiver caída, retorna null e o PHP segue a vida com a busca normal (fallback)
+        return null;
+    }
+    
     
     /**
      * Requisição HTTP para o Supabase
@@ -107,6 +140,7 @@ class CatmatMatcher {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_TIMEOUT, 15);
         
@@ -124,9 +158,20 @@ class CatmatMatcher {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         
         $response = curl_exec($ch);
+        
+        if ($response === false) {
+            $err = curl_error($ch);
+            curl_close($ch);
+            throw new Exception("Erro cURL: " . $err);
+        }
+        
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         
-        return ($httpCode >= 200 && $httpCode < 300) ? $response : null;
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new Exception("Erro HTTP Supabase ($httpCode): " . $response);
+        }
+        
+        return $response;
     }
 }

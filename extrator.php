@@ -390,8 +390,12 @@ foreach ($itens as $it) {
 <script>
     const allItems = <?php echo json_encode($itens, JSON_UNESCAPED_UNICODE); ?>;
     const currentUrl = <?php echo json_encode($url); ?>;
-    const STORAGE_KEY = 'licitapro_catmat_' + btoa(currentUrl).substring(0, 40);
-    const selectedCatmat = carregarProgresso(); // Restaura do localStorage se existir
+    
+    // Identificador único para o cache local (evita colisões em URLs longas)
+    const urlHash = currentUrl ? btoa(unescape(encodeURIComponent(currentUrl))).replace(/[/+=]/g, '').slice(-50) : 'default';
+    const STORAGE_KEY = 'licitapro_v2_' + urlHash;
+    
+    let selectedCatmat = carregarProgresso(); // Restaura do localStorage se existir
 
     function showLoader() {
         document.getElementById('loader').style.display = 'inline-block';
@@ -550,8 +554,10 @@ foreach ($itens as $it) {
 
     // --- AUTO-SAVE: localStorage ---
     function salvarProgresso() {
+        if (!currentUrl) return; // Não salva se não houver URL
         const dados = {
             selectedCatmat: selectedCatmat,
+            url: currentUrl,
             timestamp: new Date().toISOString(),
             totalItens: allItems.length,
         };
@@ -600,10 +606,10 @@ foreach ($itens as $it) {
         if (barraEl) barraEl.style.width = pct + '%';
     }
 
-    function limparProgresso() {
-        if (!confirm('Tem certeza? Isso vai apagar todas as seleções CATMAT desta sessão.')) return;
+    function limparProgresso(confirmar = true) {
+        if (confirmar && !confirm('Tem certeza? Isso vai apagar todas as seleções CATMAT desta sessão.')) return;
         localStorage.removeItem(STORAGE_KEY);
-        for (const key of Object.keys(selectedCatmat)) delete selectedCatmat[key];
+        selectedCatmat = {};
         // Restaura botões originais
         allItems.forEach((_, idx) => {
             const col = document.getElementById(`catmat-col-${idx}`);
@@ -611,7 +617,8 @@ foreach ($itens as $it) {
             const panel = document.getElementById(`catmat-panel-${idx}`);
             if (panel) panel.innerHTML = '';
         });
-        document.getElementById('bannerRestaurado').style.display = 'none';
+        const banner = document.getElementById('bannerRestaurado');
+        if (banner) banner.style.display = 'none';
         atualizarProgresso();
         atualizarJsonOutput();
     }
@@ -805,6 +812,13 @@ foreach ($itens as $it) {
                     const mainBtn = document.getElementById('btnSalvarGrade');
                     mainBtn.innerHTML = '<i class="fa-solid fa-check"></i> Grade Salva (ID: ' + data.grade_id + ')';
                     mainBtn.style.background = 'rgba(74,222,128,0.15)';
+
+                    // Limpa DOM e Memória
+                    limparProgresso(false);
+                    const tableBody = document.querySelector('#itensTable tbody');
+                    if (tableBody) tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Grade salva com sucesso. Inicie uma nova captura.</td></tr>';
+                    const stats = document.querySelector('.stats-container');
+                    if (stats) stats.style.opacity = '0.3';
                 }, 1500);
             } else {
                 btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Erro';
