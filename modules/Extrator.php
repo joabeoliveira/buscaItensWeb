@@ -349,7 +349,9 @@ class Extrator {
         }
 
         $flareUrl = getenv('FLARESOLVERR_URL');
-        // ... resto do código cURL normal ...
+        
+        // Caso contrário, segue o cURL normal (com suporte a cookies)
+        $cookieFile = sys_get_temp_dir() . '/licitador_cookies.txt';
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
