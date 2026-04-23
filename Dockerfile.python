@@ -1,0 +1,17 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY api_embeddings.py .
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Baixar o modelo previamente para não atrasar a inicialização do container
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
+
+EXPOSE 5000
+
+ENV FLASK_APP=api_embeddings.py
+
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]

@@ -109,7 +109,8 @@ class CatmatMatcher {
      * Tenta conectar à API Python local para transformar a descrição em vetor de IA
      */
     private function gerarEmbeddingPython($texto) {
-        $ch = curl_init('http://127.0.0.1:5000/embed');
+        $apiUrl = getenv('PYTHON_API_URL') ?: 'http://127.0.0.1:5000/embed';
+        $ch = curl_init($apiUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['texto' => $texto]));

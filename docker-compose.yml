@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  php-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: licitador-php
+    ports:
+      - "80:80"
+    environment:
+      - PYTHON_API_URL=http://python-api:5000/embed
+    depends_on:
+      - python-api
+    networks:
+      - licitador-network
+
+  python-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: licitador-python
+    expose:
+      - "5000"
+    networks:
+      - licitador-network
+
+networks:
+  licitador-network:
+    driver: bridge
