@@ -6,8 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: licitador-php
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     environment:
       - PYTHON_API_URL=http://python-api:5000/embed
     depends_on:
