@@ -320,10 +320,11 @@ class Extrator {
         $this->lastHttpCode = 0;
         $this->lastError = '';
         
-        $googleProxy = getenv('GOOGLE_PROXY_URL') ?: 'https://script.google.com/macros/s/AKfycbyQqa8SgCCCEgEpRKqvcb-c0Uyf9Z7SOGsyI367-qFhtn-myAQI3aKHUi4u7W-rFagRbQ/exec';
+        // Pega a URL do proxy apenas se estiver configurada (Produção)
+        $googleProxy = getenv('GOOGLE_PROXY_URL');
         
-        // Se for Licitanet, usamos o túnel do Google para evitar o bloqueio 403
-        if (strpos($url, 'licitanet.com.br') !== false && $googleProxy) {
+        // Se houver um proxy configurado e for Licitanet, usamos o túnel do Google
+        if ($googleProxy && strpos($url, 'licitanet.com.br') !== false) {
             $proxyUrl = $googleProxy . '?url=' . urlencode($url);
             
             $ch = curl_init();
