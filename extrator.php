@@ -13,6 +13,7 @@ require_once __DIR__ . '/modules/Extrator.php';
 
 // --- Processamento ---
 $url = $_POST['url'] ?? '';
+$htmlColado = $_POST['html_colado'] ?? '';
 $extrator = new Extrator();
 $resultado = [
     'itens'  => [],
@@ -22,7 +23,10 @@ $resultado = [
     'tempo'  => 0,
 ];
 
-if ($url) {
+if ($htmlColado) {
+    // Modo "colar código-fonte" - processa HTML colado diretamente
+    $resultado = $extrator->processarHtmlColado($htmlColado);
+} elseif ($url) {
     $resultado = $extrator->extrair($url);
 }
 
@@ -251,12 +255,39 @@ foreach ($itens as $it) {
             <label for="url" style="color: var(--text-muted); font-size: 0.85rem;">Insira a URL do detalhamento do processo:</label>
             <div class="input-group">
                 <input type="url" name="url" id="url" value="<?php echo htmlspecialchars($url); ?>"
-                       placeholder="https://www.portaldecompraspublicas.com.br/... ou https://www.licitanet.com.br/sessao/..." required>
+                       placeholder="https://www.portaldecompraspublicas.com.br/... ou https://www.licitanet.com.br/sessao/..." >
                 <button type="submit" class="btn-primary" id="btnExtrair">
                     <i class="fa-solid fa-bolt"></i>
                     <span>Extrair Agora</span>
                     <div class="loader" id="loader"></div>
                 </button>
+            </div>
+
+            <!-- Modo alternativo: Colar código-fonte (para Licitanet bloqueado) -->
+            <div style="margin-top: 16px;">
+                <button type="button" onclick="togglePasteMode()" class="btn-outline" style="font-size: 0.82rem; gap: 6px;">
+                    <i class="fa-solid fa-paste"></i>
+                    <span id="pasteBtnText">Licitanet bloqueada? Cole o código-fonte aqui</span>
+                    <i class="fa-solid fa-chevron-down" id="pasteChevron" style="font-size:0.65rem; transition: transform 0.3s;"></i>
+                </button>
+                <div id="pasteSection" style="display: none; margin-top: 12px; animation: fadeIn 0.3s ease;">
+                    <div style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 14px; margin-bottom: 12px;">
+                        <p style="color: var(--accent-amber); font-size: 0.82rem; margin: 0;">
+                            <i class="fa-solid fa-lightbulb"></i>
+                            <strong>Como usar:</strong> Abra a página da Licitanet no navegador → Pressione <kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.78rem;">Ctrl+U</kbd> → Selecione tudo (<kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.78rem;">Ctrl+A</kbd>) → Copie (<kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.78rem;">Ctrl+C</kbd>) → Cole abaixo.
+                        </p>
+                    </div>
+                    <textarea name="html_colado" id="htmlColado" rows="6" 
+                              placeholder="Cole aqui o código-fonte completo da página da Licitanet (Ctrl+U no navegador)..."
+                              style="width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,0.5);color:#94a3b8;font-size:0.82rem;font-family:'JetBrains Mono',monospace;resize:vertical;outline:none;transition:border-color 0.3s;"
+                              onfocus="this.style.borderColor='var(--accent-amber)'"
+                              onblur="this.style.borderColor='var(--border)'"
+                    ></textarea>
+                    <button type="submit" class="btn-primary" style="margin-top: 10px; background: linear-gradient(135deg, #f59e0b, #d97706);" onclick="document.getElementById('url').removeAttribute('required')">
+                        <i class="fa-solid fa-code"></i>
+                        <span>Processar HTML Colado</span>
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -415,6 +446,14 @@ foreach ($itens as $it) {
     function showLoader() {
         document.getElementById('loader').style.display = 'inline-block';
         document.querySelector('#btnExtrair span').innerText = 'Capturando...';
+    }
+
+    function togglePasteMode() {
+        const section = document.getElementById('pasteSection');
+        const chevron = document.getElementById('pasteChevron');
+        const isHidden = section.style.display === 'none';
+        section.style.display = isHidden ? 'block' : 'none';
+        chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
     }
 
     // --- CATMAT: Busca individual ---
