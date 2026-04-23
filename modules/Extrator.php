@@ -335,6 +335,45 @@ class Extrator {
     }
 
     /**
+     * Processa JSON gerado pelo script do console do navegador
+     * Este JSON já vem com os melhores lances extraídos do DOM renderizado
+     */
+    public function processarJsonConsole($json) {
+        $start = microtime(true);
+        $data = json_decode($json, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE || !isset($data['tipo']) || $data['tipo'] !== 'licitanet_console') {
+            $tempo = round(microtime(true) - $start, 2);
+            return ['itens' => [], 'meta' => [], 'total' => 0, 'metodo' => 'Console', 'erro' => 'JSON inválido. Use o script do console fornecido.', 'tempo' => $tempo];
+        }
+        
+        $meta = $data['meta'] ?? ['orgao' => '', 'objeto' => '', 'numero_processo' => '', 'data_sessao' => ''];
+        $itensCompletos = [];
+        
+        foreach ($data['itens'] as $it) {
+            $itensCompletos[] = [
+                'numero'           => $it['numero'] ?? '',
+                'status'           => strtoupper($it['status'] ?? 'N/A'),
+                'descricao'        => $it['descricao'] ?? '',
+                'quantidade'       => $it['quantidade'] ?? '0',
+                'unidade'          => $it['unidade'] ?? 'Unid',
+                'valor_referencia' => isset($it['valor_referencia']) ? $this->limparValor($it['valor_referencia']) : 0,
+                'melhor_lance'     => isset($it['melhor_lance']) ? $this->limparValor($it['melhor_lance']) : 0,
+            ];
+        }
+        
+        $tempo = round(microtime(true) - $start, 2);
+        return [
+            'itens'  => $itensCompletos,
+            'meta'   => $meta,
+            'total'  => count($itensCompletos),
+            'metodo' => 'Licitanet (Console)',
+            'erro'   => null,
+            'tempo'  => $tempo,
+        ];
+    }
+
+    /**
      * Método principal: tenta API primeiro, fallback para scraping
      */
     public function extrair($url) {

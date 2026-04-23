@@ -24,8 +24,13 @@ $resultado = [
 ];
 
 if ($htmlColado) {
-    // Modo "colar código-fonte" - processa HTML colado diretamente
-    $resultado = $extrator->processarHtmlColado($htmlColado);
+    // Detecta se é JSON do script do console ou HTML do código-fonte
+    $trimmed = trim($htmlColado);
+    if (strpos($trimmed, '{"tipo":"licitanet_console"') === 0) {
+        $resultado = $extrator->processarJsonConsole($trimmed);
+    } else {
+        $resultado = $extrator->processarHtmlColado($htmlColado);
+    }
 } elseif ($url) {
     $resultado = $extrator->extrair($url);
 }
@@ -263,29 +268,72 @@ foreach ($itens as $it) {
                 </button>
             </div>
 
-            <!-- Modo alternativo: Colar código-fonte (para Licitanet bloqueado) -->
+            <!-- Modo alternativo: Extração manual para Licitanet -->
             <div style="margin-top: 16px;">
                 <button type="button" onclick="togglePasteMode()" class="btn-outline" style="font-size: 0.82rem; gap: 6px;">
                     <i class="fa-solid fa-paste"></i>
-                    <span id="pasteBtnText">Licitanet bloqueada? Cole o código-fonte aqui</span>
+                    <span id="pasteBtnText">Licitanet bloqueada? Extraia os dados manualmente</span>
                     <i class="fa-solid fa-chevron-down" id="pasteChevron" style="font-size:0.65rem; transition: transform 0.3s;"></i>
                 </button>
                 <div id="pasteSection" style="display: none; margin-top: 12px; animation: fadeIn 0.3s ease;">
-                    <div style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 14px; margin-bottom: 12px;">
-                        <p style="color: var(--accent-amber); font-size: 0.82rem; margin: 0;">
-                            <i class="fa-solid fa-lightbulb"></i>
-                            <strong>Como usar:</strong> Abra a página da Licitanet no navegador → Pressione <kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.78rem;">Ctrl+U</kbd> → Selecione tudo (<kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.78rem;">Ctrl+A</kbd>) → Copie (<kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.78rem;">Ctrl+C</kbd>) → Cole abaixo.
+                    
+                    <!-- Tabs -->
+                    <div style="display:flex;gap:0;margin-bottom:0;">
+                        <button type="button" onclick="switchPasteTab('console')" id="tabConsole" style="flex:1;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:10px 10px 0 0;font-weight:600;font-size:0.82rem;cursor:pointer;">
+                            <i class="fa-solid fa-terminal"></i> Via Console (Recomendado)
+                        </button>
+                        <button type="button" onclick="switchPasteTab('source')" id="tabSource" style="flex:1;padding:10px;background:rgba(255,255,255,0.05);color:var(--text-muted);border:none;border-radius:10px 10px 0 0;font-size:0.82rem;cursor:pointer;">
+                            <i class="fa-solid fa-code"></i> Via Código-Fonte
+                        </button>
+                    </div>
+
+                    <!-- Tab Console (Recomendado - pega melhor lance) -->
+                    <div id="panelConsole" style="background:rgba(14,165,233,0.05);border:1px solid rgba(14,165,233,0.2);border-top:none;border-radius:0 0 10px 10px;padding:16px;">
+                        <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;padding:12px;margin-bottom:12px;">
+                            <p style="color:var(--accent-green);font-size:0.82rem;margin:0;">
+                                <i class="fa-solid fa-star"></i>
+                                <strong>Melhor método!</strong> Captura itens + melhor lance + todos os dados.
+                            </p>
+                        </div>
+                        <ol style="color:var(--text-muted);font-size:0.82rem;padding-left:20px;margin-bottom:12px;line-height:2;">
+                            <li>Abra a página da Licitanet no navegador</li>
+                            <li>Pressione <kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">F12</kbd> → Aba <strong>Console</strong></li>
+                            <li>Copie o script abaixo e cole no console → Enter</li>
+                            <li>Cole o resultado aqui embaixo (Ctrl+V)</li>
+                        </ol>
+                        <div style="position:relative;">
+                            <pre id="consoleScript" style="background:#000;color:#0f0;padding:12px;border-radius:8px;font-size:0.72rem;max-height:120px;overflow:auto;cursor:pointer;border:1px solid var(--border);" onclick="copiarScript()" title="Clique para copiar">(function(){var d=JSON.parse(document.getElementById('app').getAttribute('data-page'));var r=d.props.disputeRoom;var items=r.items.data||r.items;var lances=[];document.querySelectorAll('p').forEach(function(p){if(p.textContent.trim()==='Melhor Lance'){var v=p.nextElementSibling;if(v)lances.push(v.textContent.trim());}});var result=items.map(function(it,i){return{numero:it.batch,descricao:it.name,quantidade:it.quantity,unidade:it.unit,valor_referencia:it.estimatedValue,melhor_lance:lances[i]||'R$ 0,00',status:r.status};});var out=JSON.stringify({tipo:'licitanet_console',meta:{orgao:r.buyer,objeto:r.description,numero_processo:r.number,data_sessao:r.startDate},itens:result});navigator.clipboard.writeText(out).then(function(){alert('✅ '+result.length+' itens copiados!\n\nCole no Licitador Pro (Ctrl+V).');});})();</pre>
+                            <button type="button" onclick="copiarScript()" style="position:absolute;top:8px;right:8px;background:var(--primary);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                                <i class="fa-solid fa-copy"></i> Copiar Script
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tab Código-Fonte (fallback) -->
+                    <div id="panelSource" style="display:none;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.2);border-top:none;border-radius:0 0 10px 10px;padding:16px;">
+                        <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:12px;margin-bottom:12px;">
+                            <p style="color:var(--accent-amber);font-size:0.82rem;margin:0;">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <strong>Atenção:</strong> Este método NÃO captura o Melhor Lance (ele é renderizado dinamicamente).
+                            </p>
+                        </div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px;">
+                            <kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">Ctrl+U</kbd> → 
+                            <kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">Ctrl+A</kbd> → 
+                            <kbd style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">Ctrl+C</kbd> → Cole abaixo
                         </p>
                     </div>
-                    <textarea name="html_colado" id="htmlColado" rows="6" 
-                              placeholder="Cole aqui o código-fonte completo da página da Licitanet (Ctrl+U no navegador)..."
-                              style="width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,0.5);color:#94a3b8;font-size:0.82rem;font-family:'JetBrains Mono',monospace;resize:vertical;outline:none;transition:border-color 0.3s;"
-                              onfocus="this.style.borderColor='var(--accent-amber)'"
+
+                    <!-- Campo de colagem (compartilhado) -->
+                    <textarea name="html_colado" id="htmlColado" rows="5" 
+                              placeholder="Cole aqui o resultado do script do console ou o código-fonte da página..."
+                              style="width:100%;padding:14px;border-radius:12px;border:1px solid var(--border);background:rgba(15,23,42,0.5);color:#94a3b8;font-size:0.82rem;font-family:'JetBrains Mono',monospace;resize:vertical;outline:none;transition:border-color 0.3s;margin-top:12px;"
+                              onfocus="this.style.borderColor='var(--primary)'"
                               onblur="this.style.borderColor='var(--border)'"
                     ></textarea>
-                    <button type="submit" class="btn-primary" style="margin-top: 10px; background: linear-gradient(135deg, #f59e0b, #d97706);" onclick="document.getElementById('url').removeAttribute('required')">
-                        <i class="fa-solid fa-code"></i>
-                        <span>Processar HTML Colado</span>
+                    <button type="submit" class="btn-primary" style="margin-top: 10px; background: linear-gradient(135deg, #10b981, #059669);" onclick="document.getElementById('url').removeAttribute('required')">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span>Processar Dados</span>
                     </button>
                 </div>
             </div>
@@ -454,6 +502,32 @@ foreach ($itens as $it) {
         const isHidden = section.style.display === 'none';
         section.style.display = isHidden ? 'block' : 'none';
         chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+    }
+
+    function switchPasteTab(tab) {
+        const tabConsole = document.getElementById('tabConsole');
+        const tabSource = document.getElementById('tabSource');
+        const panelConsole = document.getElementById('panelConsole');
+        const panelSource = document.getElementById('panelSource');
+        if (tab === 'console') {
+            tabConsole.style.background = 'var(--primary)'; tabConsole.style.color = '#fff'; tabConsole.style.fontWeight = '600';
+            tabSource.style.background = 'rgba(255,255,255,0.05)'; tabSource.style.color = 'var(--text-muted)'; tabSource.style.fontWeight = 'normal';
+            panelConsole.style.display = 'block'; panelSource.style.display = 'none';
+        } else {
+            tabSource.style.background = 'var(--accent-amber)'; tabSource.style.color = '#000'; tabSource.style.fontWeight = '600';
+            tabConsole.style.background = 'rgba(255,255,255,0.05)'; tabConsole.style.color = 'var(--text-muted)'; tabConsole.style.fontWeight = 'normal';
+            panelSource.style.display = 'block'; panelConsole.style.display = 'none';
+        }
+    }
+
+    function copiarScript() {
+        const script = document.getElementById('consoleScript').textContent;
+        navigator.clipboard.writeText(script).then(() => {
+            const btn = event.currentTarget;
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado!';
+            setTimeout(() => { btn.innerHTML = orig; }, 2000);
+        });
     }
 
     // --- CATMAT: Busca individual ---
