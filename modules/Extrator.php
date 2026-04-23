@@ -164,19 +164,22 @@ class Extrator {
             $data = json_decode($jsonData, true);
             
             if (json_last_error() !== JSON_ERROR_NONE) {
-                $this->lastError = "Erro ao processar JSON da Licitanet: " . json_last_error_msg();
+                $this->lastError = "Erro JSON: " . json_last_error_msg();
                 return [];
             }
             
             $room = $data['props']['disputeRoom'] ?? null;
             if (!$room) {
-                $this->lastError = "Estrutura 'disputeRoom' não encontrada no JSON.";
+                $this->lastError = "Estrutura 'disputeRoom' não encontrada.";
                 return [];
             }
 
-            $items = $room['items'] ?? [];
+            // Suporte para Licitanet 4.0 (items pode ser um array simples ou um objeto paginado com 'data')
+            $itemsRaw = $room['items'] ?? [];
+            $items = isset($itemsRaw['data']) && is_array($itemsRaw['data']) ? $itemsRaw['data'] : $itemsRaw;
+
             $statusGeral = $room['status'] ?? 'N/A';
-            $messages = $room['messages']['data'] ?? [];
+            $messages = $room['messages']['data'] ?? $room['messages'] ?? [];
             
             $meta['orgao'] = $room['buyer'] ?? '';
             $meta['objeto'] = $room['description'] ?? '';
@@ -185,31 +188,38 @@ class Extrator {
 
             // Tenta achar o melhor lance nas mensagens (ACEITA pelo valor de R$ X)
             $melhoresLances = [];
-            foreach ($messages as $msg) {
-                if (isset($msg['batch']) && isset($msg['message'])) {
-                    if (preg_match('/ACEITA pelo valor de R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
-                        $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
-                    } elseif (preg_match('/R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
-                        // Fallback se não tiver ACEITA, apenas pega o valor da mensagem (se não houver um melhor ainda)
-                        if (!isset($melhoresLances[$msg['batch']])) {
+            if (is_array($messages)) {
+                foreach ($messages as $msg) {
+                    if (isset($msg['batch']) && isset($msg['message'])) {
+                        if (preg_match('/ACEITA pelo valor de R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
                             $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
+                        } elseif (preg_match('/R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
+                            if (!isset($melhoresLances[$msg['batch']])) {
+                                $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
+                            }
                         }
                     }
                 }
             }
             
-            foreach ($items as $it) {
-                $batch = $it['batch'] ?? '';
-                $itensCompletos[] = [
-                    'numero'           => $batch,
-                    'status'           => strtoupper($statusGeral),
-                    'descricao'        => $it['name'] ?? '',
-                    'quantidade'       => $it['quantity'] ?? '0',
-                    'unidade'          => $it['unit'] ?? 'Unid',
-                    'valor_referencia' => isset($it['estimatedValue']) ? $this->limparValor($it['estimatedValue']) : 0,
-                    'melhor_lance'     => $melhoresLances[$batch] ?? 0,
-                ];
+            if (is_array($items)) {
+                foreach ($items as $it) {
+                    $batch = $it['batch'] ?? ($it['numero'] ?? '');
+                    if (!$batch) continue;
+
+                    $itensCompletos[] = [
+                        'numero'           => $batch,
+                        'status'           => strtoupper($statusGeral),
+                        'descricao'        => $it['name'] ?? ($it['descricao'] ?? ''),
+                        'quantidade'       => $it['quantity'] ?? ($it['quantidade'] ?? '0'),
+                        'unidade'          => $it['unit'] ?? ($it['unidade'] ?? 'Unid'),
+                        'valor_referencia' => isset($it['estimatedValue']) ? $this->limparValor($it['estimatedValue']) : (isset($it['valorReferencia']) ? $this->limparValor($it['valorReferencia']) : 0),
+                        'melhor_lance'     => $melhoresLances[$batch] ?? 0,
+                    ];
+                }
             }
+        } else {
+            $this->lastError = "Atributo 'data-page' não encontrado no HTML.";
         }
         
         return ['itens' => $itensCompletos, 'meta' => $meta];
