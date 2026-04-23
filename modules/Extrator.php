@@ -339,6 +339,9 @@ class Extrator {
         curl_setopt($ch, CURLOPT_ENCODING, ""); 
         curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
         
+        // Força o uso de IPv6 se disponível
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V6);
+        
         curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
         curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
         
