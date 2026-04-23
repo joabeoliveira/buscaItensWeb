@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Licitador Pro | Banco de Preços Históricos</title>
+    <meta name="description" content="Banco de preços históricos para pesquisa e composição de orçamentos.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --primary-glow: rgba(14, 165, 233, 0.15);
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-alt: #162032;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-green: #4ade80;
+            --accent-amber: #fbbf24;
+            --accent-red: #f87171;
+            --glass: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.08);
+            --radius: 16px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            background-image: radial-gradient(circle at 50% 0%, var(--primary-glow) 0%, transparent 50%);
+            color: var(--text-main);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        h1,h2,h3 { font-family: 'Outfit', sans-serif; font-weight: 700; }
+        .container { max-width: 1500px; margin: 0 auto; padding: 30px 20px; }
+
+        /* Header */
+        header { text-align: center; margin-bottom: 40px; position: relative; }
+        .nav-links { position: absolute; left: 0; top: 10px; }
+        .nav-links a { color: var(--primary); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+        .nav-links a:hover { color: var(--text-main); }
+        .logo { font-size: 2.2rem; color: var(--primary); display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .logo i { font-size: 2.5rem; filter: drop-shadow(0 0 8px rgba(14,165,233,0.4)); }
+        .logo .badge { 
+            font-size: 0.6rem; background: linear-gradient(135deg, var(--accent-green), #22d3ee); 
+            color: #000; padding: 3px 8px; border-radius: 20px; font-weight: 700; vertical-align: super;
+            letter-spacing: 0.5px;
+        }
+        header p { color: var(--text-muted); font-size: 1rem; margin-top: 5px; }
+
+        /* Glass Card */
+        .glass-card {
+            background: var(--glass); backdrop-filter: blur(10px);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 25px; margin-bottom: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+        }
+
+        /* Form */
+        .search-form { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
+        .input-group { flex: 1; min-width: 300px; }
+        .input-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-muted); font-size: 0.9rem; }
+        .input-group input {
+            width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--border);
+            color: var(--text-main); padding: 14px 18px; border-radius: 8px;
+            font-size: 1rem; font-family: 'JetBrains Mono', monospace; transition: all 0.3s;
+        }
+        .input-group input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14,165,233,0.2); }
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white; border: none; padding: 14px 28px; border-radius: 8px;
+            font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(14,165,233,0.4); }
+
+        /* Results */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px; margin-bottom: 30px;
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.2); border: 1px solid var(--border);
+            padding: 20px; border-radius: 12px; text-align: center;
+        }
+        .stat-box h4 { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 10px; font-weight: 500; }
+        .stat-box .value { font-size: 1.8rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text-main); }
+        .stat-box .value.green { color: var(--accent-green); }
+        .stat-box .value.blue { color: var(--primary); }
+        
+        .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; background: var(--bg-card-alt); font-size: 0.95rem; }
+        th { background: rgba(0,0,0,0.4); color: var(--text-muted); padding: 16px; text-align: left; font-weight: 600; font-family: 'Outfit', sans-serif; white-space: nowrap; border-bottom: 2px solid var(--border); }
+        td { padding: 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: rgba(255,255,255,0.02); }
+        
+        .catmat-badge { background: rgba(14,165,233,0.1); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.85rem; border: 1px solid rgba(14,165,233,0.2); display: inline-block; }
+        .val-ref { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        .val-melhor { color: var(--accent-green); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        
+        .loading { display: none; text-align: center; padding: 40px; color: var(--text-muted); }
+        .loading i { font-size: 2rem; color: var(--primary); margin-bottom: 15px; }
+        .empty-state i { font-size: 3rem; margin-bottom: 15px; opacity: 0.5; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .tab-btn {
+            background: transparent; color: var(--text-muted); border: none; padding: 10px 20px;
+            font-size: 1.05rem; font-weight: 600; cursor: pointer; border-radius: 8px; transition: 0.3s;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-main); }
+        .tab-btn.active { background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(14,165,233,0.2); }
+        
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Accordion Grades */
+        .grade-item { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 15px; overflow: hidden; }
+        .grade-header { padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+        .grade-header:hover { background: rgba(255,255,255,0.03); }
+        .grade-info h3 { margin-bottom: 4px; color: var(--text-main); font-size: 1.1rem; }
+        .grade-meta { display: flex; gap: 15px; font-size: 0.85rem; color: var(--text-muted); flex-wrap: wrap; }
+        .grade-meta span { display: flex; align-items: center; gap: 5px; }
+        .grade-actions { display: flex; align-items: center; gap: 15px; }
+        .grade-body { padding: 0; display: none; border-top: 1px solid var(--border); background: var(--bg-card-alt); }
+        .grade-item.expanded .grade-body { display: block; }
+        .grade-item.expanded .fa-chevron-down { transform: rotate(180deg); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="nav-links">
+                <a href="extrator.php"><i class="fas fa-arrow-left"></i> Voltar ao Extrator</a>
+            </div>
+            <div class="logo">
+                <i class="fas fa-chart-line"></i> Licitador Pro <span class="badge">PREÇOS</span>
+            </div>
+            <p>Banco de preços históricos para composição de orçamentos e referência de órgãos públicos.</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-pesquisa', this)"><i class="fas fa-search"></i> Pesquisa Global de Itens</button>
+            <button class="tab-btn" onclick="switchTab('tab-grades', this)"><i class="fas fa-folder-open"></i> Edital / Licitações Salvas</button>
+        </div>
+
+        <!-- TAB PESQUISA GLOBAL -->
+        <div id="tab-pesquisa" class="tab-content active">
+            <div class="glass-card">
+                <form id="searchForm" class="search-form" onsubmit="buscarPrecos(event)">
+                    <div class="input-group">
+                        <label for="termoBusca"><i class="fas fa-search"></i> Código CATMAT ou Descrição</label>
+                        <input type="text" id="termoBusca" placeholder="Ex: 150242 ou Caneta Esferográfica..." required autofocus>
+                    </div>
+                    <button type="submit" class="btn" id="btnBuscar">
+                        <i class="fas fa-database"></i> Pesquisar Base
+                    </button>
+                </form>
+            </div>
+
+            <div id="loading" class="loading">
+                <i class="fas fa-circle-notch fa-spin"></i>
+                <p>Buscando histórico de preços no banco de dados...</p>
+            </div>
+
+            <div id="resultsArea" style="display: none;">
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <h4>Média Valor Estimado</h4>
+                        <div class="value" id="statMediaEst">R$ 0,00</div>
+                    </div>
+                    <div class="stat-box">
+                        <h4>Média Melhor Lance</h4>
+                        <div class="value green" id="statMediaLance">R$ 0,00</div>
+                    </div>
+                    <div class="stat-box">
+                        <h4>Ocorrências</h4>
+                        <div class="value blue" id="statOcorrencias">0</div>
+                    </div>
+                </div>
+
+                <div class="glass-card" style="padding: 0; overflow: hidden;">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Processo/Origem</th>
+                                    <th>Descrição no Edital</th>
+                                    <th>Qtd / Und</th>
+                                    <th>Valor Referência</th>
+                                    <th>Melhor Lance</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaPrecos">
+                                <!-- JS fill -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <i class="fas fa-search-dollar"></i>
+                <h3>Nenhum preço encontrado</h3>
+                <p>Não há histórico de compras salvas com este termo.</p>
+            </div>
+        </div>
+
+        <!-- TAB GRADES (Licitações) -->
+        <div id="tab-grades" class="tab-content">
+            <div id="gradesLoading" class="loading" style="display: block;">
+                <i class="fas fa-circle-notch fa-spin"></i>
+                <p>Carregando licitações salvas...</p>
+            </div>
+            
+            <div id="gradesList">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formataDinheiro(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+        }
+
+        function formataData(dataIso) {
+            if (!dataIso) return '-';
+            const d = new Date(dataIso);
+            return d.toLocaleDateString('pt-BR');
+        }
+
+        async function buscarPrecos(e) {
+            e.preventDefault();
+            const termo = document.getElementById('termoBusca').value;
+            if(!termo) return;
+
+            const btn = document.getElementById('btnBuscar');
+            const loading = document.getElementById('loading');
+            const resultsArea = document.getElementById('resultsArea');
+            const emptyState = document.getElementById('emptyState');
+            
+            btn.disabled = true;
+            loading.style.display = 'block';
+            resultsArea.style.display = 'none';
+            emptyState.style.display = 'none';
+
+            try {
+                const response = await fetch(`api/banco_precos.php?busca=${encodeURIComponent(termo)}`);
+                const json = await response.json();
+
+                if(json.sucesso && json.dados && json.dados.length > 0) {
+                    preencherTabela(json.dados);
+                    resultsArea.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro ao buscar preços: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function preencherTabela(dados) {
+            const tbody = document.getElementById('tabelaPrecos');
+            tbody.innerHTML = '';
+
+            let somaEst = 0;
+            let somaLance = 0;
+            let countEst = 0;
+            let countLance = 0;
+
+            dados.forEach(item => {
+                const grade = item.grades_de_itens || {};
+                const data = formataData(grade.data_criacao);
+                
+                const valRef = parseFloat(item.valor_referencia || 0);
+                const valLance = parseFloat(item.melhor_lance || 0);
+
+                if (valRef > 0) { somaEst += valRef; countEst++; }
+                if (valLance > 0) { somaLance += valLance; countLance++; }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="text-muted" style="font-size: 0.85rem">${data}</span></td>
+                    <td>
+                        <div style="font-weight:600; font-size:0.9rem">${grade.nome || '-'}</div>
+                        ${grade.url_origem ? `<a href="${grade.url_origem}" target="_blank" style="color:var(--primary); font-size:0.8rem; text-decoration:none;"><i class="fas fa-external-link-alt"></i> Ver Edital</a>` : ''}
+                    </td>
+                    <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.descricao_portal}">
+                        ${item.descricao_portal}
+                    </td>
+                    <td>${item.quantidade} <span class="text-muted">${item.unidade}</span></td>
+                    <td class="val-ref">${valRef > 0 ? formataDinheiro(valRef) : '-'}</td>
+                    <td class="val-melhor">${valLance > 0 ? formataDinheiro(valLance) : '-'}</td>
+                    <td>
+                        <button class="btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="copiarPreco('${valLance > 0 ? valLance : valRef}')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Update stats
+            const mediaEst = countEst > 0 ? (somaEst / countEst) : 0;
+            const mediaLance = countLance > 0 ? (somaLance / countLance) : 0;
+
+            document.getElementById('statMediaEst').innerText = mediaEst > 0 ? formataDinheiro(mediaEst) : '-';
+            document.getElementById('statMediaLance').innerText = mediaLance > 0 ? formataDinheiro(mediaLance) : '-';
+            document.getElementById('statOcorrencias').innerText = dados.length;
+        }
+
+        function copiarPreco(valor) {
+            navigator.clipboard.writeText(valor.toString().replace('.', ',')).then(() => {
+                // visual feedback optional
+            });
+        }
+
+        // --- Tabs Logic ---
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+
+            if (tabId === 'tab-grades') {
+                carregarGrades();
+            }
+        }
+
+        // --- Grades Logic ---
+        async function carregarGrades() {
+            const loading = document.getElementById('gradesLoading');
+            const list = document.getElementById('gradesList');
+            
+            list.innerHTML = '';
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('api/grade.php');
+                const data = await response.json();
+
+                if (data.grades && data.grades.length > 0) {
+                    renderizarGrades(data.grades, list);
+                } else {
+                    list.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-folder-open"></i>
+                            <h3>Nenhuma licitação salva</h3>
+                            <p>As licitações que você salvar no extrator aparecerão aqui.</p>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = `<p style="color:var(--accent-red); text-align:center;">Erro ao carregar licitações.</p>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function renderizarGrades(grades, container) {
+            grades.forEach(grade => {
+                const count = grade.grade_catmat_associados ? grade.grade_catmat_associados[0].count : 0;
+                const dataCriacao = formataData(grade.data_criacao);
+                
+                const orgao = grade.orgao || 'Órgão Não Informado';
+                const processo = grade.numero_processo || 'S/N';
+                const portal = grade.portal_origem || 'Desconhecido';
+
+                const div = document.createElement('div');
+                div.className = 'grade-item';
+                div.id = `grade-item-${grade.id}`;
+                
+                div.innerHTML = `
+                    <div class="grade-header" onclick="toggleGrade(${grade.id})">
+                        <div class="grade-info">
+                            <h3>${grade.nome}</h3>
+                            <div class="grade-meta">
+                                <span><i class="fas fa-building"></i> ${orgao}</span>
+                                <span><i class="fas fa-file-signature"></i> Processo: ${processo}</span>
+                                <span><i class="fas fa-globe"></i> ${portal}</span>
+                                <span><i class="fas fa-calendar-alt"></i> ${dataCriacao}</span>
+                                <span style="color:var(--primary);"><i class="fas fa-list"></i> ${count} itens</span>
+                            </div>
+                        </div>
+                        <div class="grade-actions">
+                            ${grade.url_origem ? `<a href="${grade.url_origem}" target="_blank" class="btn" style="padding:6px 12px;font-size:0.8rem;" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i> Portal</a>` : ''}
+                            <i class="fas fa-chevron-down" style="transition:0.3s;"></i>
+                        </div>
+                    </div>
+                    <div class="grade-body" id="grade-body-${grade.id}">
+                        <div style="padding:20px; text-align:center; color:var(--text-muted);">
+                            <i class="fas fa-circle-notch fa-spin"></i> Carregando itens...
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function toggleGrade(id) {
+            const item = document.getElementById(`grade-item-${id}`);
+            const body = document.getElementById(`grade-body-${id}`);
+            
+            const isExpanded = item.classList.contains('expanded');
+            
+            // Colapsa todos os outros
+            document.querySelectorAll('.grade-item').forEach(el => el.classList.remove('expanded'));
+            
+            if (!isExpanded) {
+                item.classList.add('expanded');
+                
+                // Fetch itens if not loaded
+                if (body.getAttribute('data-loaded') !== 'true') {
+                    try {
+                        const response = await fetch(`api/grade.php?id=${id}`);
+                        const data = await response.json();
+                        
+                        if (data && data.grade_catmat_associados) {
+                            renderizarItensGrade(body, data.grade_catmat_associados);
+                            body.setAttribute('data-loaded', 'true');
+                        } else {
+                            body.innerHTML = `<div style="padding:20px; text-align:center;">Nenhum item encontrado.</div>`;
+                        }
+                    } catch (e) {
+                        body.innerHTML = `<div style="padding:20px; color:var(--accent-red); text-align:center;">Erro ao carregar itens.</div>`;
+                    }
+                }
+            }
+        }
+
+        function renderizarItensGrade(container, itens) {
+            if (!itens || itens.length === 0) {
+                container.innerHTML = `<div style="padding:20px; text-align:center;">Nenhum item salvo para esta licitação.</div>`;
+                return;
+            }
+
+            let rows = '';
+            itens.forEach(item => {
+                const valRef = parseFloat(item.valor_referencia || 0);
+                const valLance = parseFloat(item.melhor_lance || 0);
+                
+                let catmatBadge = item.codigo_catmat ? `<span class="catmat-badge">${item.codigo_catmat}</span>` : '-';
+
+                rows += `
+                    <tr>
+                        <td style="font-weight:600; color:var(--primary);">#${item.item_numero || item.ordem}</td>
+                        <td style="max-width:350px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${item.descricao_portal}">
+                            ${item.descricao_portal}
+                            ${item.descricao_catmat ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">CATMAT: ${item.descricao_catmat}</div>` : ''}
+                        </td>
+                        <td>${catmatBadge}</td>
+                        <td>${item.quantidade} <span style="font-size:0.8rem; color:var(--text-muted);">${item.unidade}</span></td>
+                        <td class="val-ref">${valRef > 0 ? formataDinheiro(valRef) : '-'}</td>
+                        <td class="val-melhor">${valLance > 0 ? formataDinheiro(valLance) : '-'}</td>
+                    </tr>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="table-responsive" style="border:none; border-radius:0;">
+                    <table style="background:transparent;">
+                        <thead>
+                            <tr>
+                                <th style="background:rgba(0,0,0,0.2);">Item</th>
+                                <th style="background:rgba(0,0,0,0.2);">Descrição</th>
+                                <th style="background:rgba(0,0,0,0.2);">CATMAT</th>
+                                <th style="background:rgba(0,0,0,0.2);">Qtd</th>
+                                <th style="background:rgba(0,0,0,0.2);">Estimado</th>
+                                <th style="background:rgba(0,0,0,0.2);">Vencedor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

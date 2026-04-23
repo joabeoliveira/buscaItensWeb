@@ -33,9 +33,13 @@ class GradeManager {
             'descricao'      => $dados['descricao'] ?? '',
             'url_origem'     => $dados['url_origem'] ?? '',
             'processo_id'    => $dados['processo_id'] ?? '',
-            'portal_origem'  => $dados['portal_origem'] ?? 'Portal de Compras Públicas',
+            'portal_origem'  => strpos($dados['url_origem'] ?? '', 'licitanet') !== false ? 'Licitanet' : ($dados['portal_origem'] ?? 'Portal de Compras Públicas'),
             'criada_por'     => $dados['criada_por'] ?? 'extrator-web',
             'status'         => 'rascunho',
+            'orgao'          => $dados['orgao'] ?? '',
+            'objeto'         => $dados['objeto'] ?? '',
+            'numero_processo'=> $dados['numero_processo'] ?? '',
+            'data_sessao'    => !empty($dados['data_sessao']) ? $dados['data_sessao'] : null,
         ];
         
         $response = $this->request(
@@ -69,6 +73,7 @@ class GradeManager {
                     'quantidade'        => floatval($item['quantidade'] ?? 1),
                     'unidade'           => $item['unidade'] ?? 'UN',
                     'valor_referencia'  => floatval($item['valor_referencia'] ?? 0),
+                    'melhor_lance'      => floatval($item['melhor_lance'] ?? 0),
                     'ordem'             => intval($ordem) + 1,
                     'item_numero'       => $item['numero'] ?? strval($ordem + 1),
                     'status_item'       => $item['status'] ?? 'N/A',
@@ -104,7 +109,7 @@ class GradeManager {
      */
     public function listar() {
         $response = $this->request(
-            $this->supabaseUrl . '/rest/v1/grades_de_itens?select=id,nome,descricao,status,criada_por,portal_origem,url_origem,data_criacao,grade_catmat_associados(count)&order=data_criacao.desc',
+            $this->supabaseUrl . '/rest/v1/grades_de_itens?select=id,nome,descricao,status,criada_por,portal_origem,url_origem,orgao,objeto,numero_processo,data_sessao,data_criacao,grade_catmat_associados(count)&order=data_criacao.desc',
             'GET'
         );
         
@@ -136,6 +141,28 @@ class GradeManager {
             'PATCH',
             json_encode(['sincronizado_algorise' => true, 'status' => 'sincronizado'])
         );
+    }
+    
+    /**
+     * Busca histórico de preços por código CATMAT ou descrição
+     */
+    public function buscarPrecos($termo) {
+        $termoLimpo = trim($termo);
+        $termoBusca = urlencode('*' . $termoLimpo . '*');
+        
+        if (is_numeric($termoLimpo)) {
+            // Se for número, busca por código ou por trecho na descrição
+            $orCond = "or=(codigo_catmat.eq." . intval($termoLimpo) . ",descricao_portal.ilike." . $termoBusca . ",descricao_catmat.ilike." . $termoBusca . ")";
+        } else {
+            // Se for texto, busca apenas nas descrições
+            $orCond = "or=(descricao_portal.ilike." . $termoBusca . ",descricao_catmat.ilike." . $termoBusca . ")";
+        }
+        
+        $url = $this->supabaseUrl . '/rest/v1/grade_catmat_associados?' . $orCond . '&select=*,grades_de_itens(nome,url_origem,data_criacao)';
+        $response = $this->request($url, 'GET');
+        
+        if (!$response) return [];
+        return json_decode($response, true) ?: [];
     }
     
     /**

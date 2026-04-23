@@ -26,10 +26,16 @@ if ($url) {
     $resultado = $extrator->extrair($url);
 }
 
-$itens = $resultado['itens'];
-$error = $resultado['erro'];
-$metodoUtilizado = $resultado['metodo'];
-$tempoExecucao = $resultado['tempo'];
+$itens = $resultado['itens'] ?? [];
+$error = $resultado['erro'] ?? null;
+$metodoUtilizado = $resultado['metodo'] ?? 'Nenhum';
+$tempoExecucao = $resultado['tempo'] ?? 0;
+$meta = $resultado['meta'] ?? [
+    'orgao' => '',
+    'objeto' => '',
+    'numero_processo' => '',
+    'data_sessao' => '',
+];
 
 // Estatísticas
 $valorTotalRef = 0;
@@ -77,7 +83,7 @@ foreach ($itens as $it) {
             min-height: 100vh;
         }
         h1,h2,h3 { font-family: 'Outfit', sans-serif; font-weight: 700; }
-        .container { max-width: 1300px; margin: 0 auto; padding: 30px 20px; }
+        .container { max-width: 1500px; margin: 0 auto; padding: 30px 20px; }
 
         /* Header */
         header { text-align: center; margin-bottom: 40px; }
@@ -137,11 +143,11 @@ foreach ($itens as $it) {
         .table-wrap { overflow-x: auto; }
         .table-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
         table { width: 100%; border-collapse: collapse; }
-        th { background: rgba(255,255,255,0.03); text-align: left; padding: 12px 16px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.8px; }
+        th { background: rgba(255,255,255,0.03); text-align: left; padding: 12px 16px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.8px; white-space: nowrap; }
         td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 0.88rem; vertical-align: top; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: rgba(255,255,255,0.02); }
-        .status-badge { padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; font-weight: 600; background: rgba(14,165,233,0.1); color: var(--primary); }
+        .status-badge { padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; font-weight: 600; background: rgba(14,165,233,0.1); color: var(--primary); white-space: nowrap; }
         .val { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.85rem; }
 
         /* CATMAT Suggestions Panel */
@@ -225,7 +231,12 @@ foreach ($itens as $it) {
 </head>
 <body>
 <div class="container" id="app">
-    <header>
+    <header style="position: relative;">
+        <div style="position: absolute; right: 0; top: 0;">
+            <a href="banco-precos.html" style="color: var(--primary); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px; background: rgba(14,165,233,0.1); padding: 8px 16px; border-radius: 8px; transition: 0.3s; border: 1px solid rgba(14,165,233,0.2);">
+                <i class="fas fa-database"></i> Acessar Banco de Preços
+            </a>
+        </div>
         <div class="logo">
             <i class="fa-solid fa-cube"></i>
             <span>LICITADOR PRO</span>
@@ -240,7 +251,7 @@ foreach ($itens as $it) {
             <label for="url" style="color: var(--text-muted); font-size: 0.85rem;">Insira a URL do detalhamento do processo:</label>
             <div class="input-group">
                 <input type="url" name="url" id="url" value="<?php echo htmlspecialchars($url); ?>"
-                       placeholder="https://www.portaldecompraspublicas.com.br/processos/..." required>
+                       placeholder="https://www.portaldecompraspublicas.com.br/... ou https://www.licitanet.com.br/sessao/..." required>
                 <button type="submit" class="btn-primary" id="btnExtrair">
                     <i class="fa-solid fa-bolt"></i>
                     <span>Extrair Agora</span>
@@ -332,6 +343,7 @@ foreach ($itens as $it) {
                             <th>Descrição</th>
                             <th>Qtd / Unid</th>
                             <th>Valor Ref.</th>
+                            <th>Melhor Lance</th>
                             <th>Valor Total</th>
                             <th>CATMAT</th>
                         </tr>
@@ -341,6 +353,7 @@ foreach ($itens as $it) {
                             <?php
                                 $qtd = floatval(str_replace(',', '.', str_replace('.', '', $item['quantidade'] ?? '0')));
                                 $valUnit = floatval($item['valor_referencia'] ?? 0);
+                                $valMelhorLance = floatval($item['melhor_lance'] ?? 0);
                                 $valTotal = $qtd * $valUnit;
                             ?>
                             <tr data-idx="<?php echo $idx; ?>" data-desc="<?php echo htmlspecialchars($item['descricao']); ?>">
@@ -367,6 +380,7 @@ foreach ($itens as $it) {
                                     <div style="font-size:0.75rem;color:var(--text-muted);"><?php echo htmlspecialchars($item['unidade'] ?? 'Unid'); ?></div>
                                 </td>
                                 <td class="val">R$ <?php echo number_format($valUnit, 2, ',', '.'); ?></td>
+                                <td class="val" style="color:var(--accent-amber);">R$ <?php echo number_format($valMelhorLance, 2, ',', '.'); ?></td>
                                 <td class="val" style="color:var(--accent-green);">R$ <?php echo number_format($valTotal, 2, ',', '.'); ?></td>
                                 <td id="catmat-col-<?php echo $idx; ?>">
                                     <button class="btn-sm" onclick="buscarCatmat(<?php echo $idx; ?>)">
@@ -390,6 +404,7 @@ foreach ($itens as $it) {
 <script>
     const allItems = <?php echo json_encode($itens, JSON_UNESCAPED_UNICODE); ?>;
     const currentUrl = <?php echo json_encode($url); ?>;
+    const extractMeta = <?php echo json_encode($meta, JSON_UNESCAPED_UNICODE); ?>;
     
     // Identificador único para o cache local (evita colisões em URLs longas)
     const urlHash = currentUrl ? btoa(unescape(encodeURIComponent(currentUrl))).replace(/[/+=]/g, '').slice(-50) : 'default';
@@ -737,12 +752,27 @@ foreach ($itens as $it) {
                     <input type="text" id="gradeNome" placeholder="Ex: Alimentação Escolar - Pequeri 2026" 
                            style="width:100%;padding:12px 16px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);color:#fff;font-size:0.9rem;">
                 </div>
-                <div style="margin-bottom:20px;">
-                    <label style="color:var(--text-muted);font-size:0.82rem;display:block;margin-bottom:4px;">Descrição (opcional)</label>
-                    <textarea id="gradeDesc" rows="2" placeholder="Breve descrição da grade..." 
-                              style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);color:#fff;font-size:0.85rem;resize:vertical;"></textarea>
+                <div style="display:flex;gap:10px;margin-bottom:14px;">
+                    <div style="flex:1;">
+                        <label style="color:var(--text-muted);font-size:0.82rem;display:block;margin-bottom:4px;">Órgão</label>
+                        <input type="text" id="gradeOrgao" value="${extractMeta.orgao || ''}" placeholder="Nome do Órgão" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);color:#fff;font-size:0.85rem;">
+                    </div>
+                    <div style="width:140px;">
+                        <label style="color:var(--text-muted);font-size:0.82rem;display:block;margin-bottom:4px;">Processo</label>
+                        <input type="text" id="gradeProcesso" value="${extractMeta.numero_processo || ''}" placeholder="Ex: 001/2026" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);color:#fff;font-size:0.85rem;">
+                    </div>
                 </div>
-                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <div style="display:flex;gap:10px;margin-bottom:14px;">
+                    <div style="flex:1;">
+                        <label style="color:var(--text-muted);font-size:0.82rem;display:block;margin-bottom:4px;">Objeto</label>
+                        <input type="text" id="gradeObjeto" value="${extractMeta.objeto || ''}" placeholder="Objeto da Licitação" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);color:#fff;font-size:0.85rem;">
+                    </div>
+                    <div style="width:180px;">
+                        <label style="color:var(--text-muted);font-size:0.82rem;display:block;margin-bottom:4px;">Data/Hora</label>
+                        <input type="text" id="gradeDataSessao" value="${extractMeta.data_sessao || ''}" placeholder="Ex: 2026-04-01T16:00:00" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);color:#fff;font-size:0.85rem;">
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
                     <button onclick="fecharModal()" class="btn-outline">Cancelar</button>
                     <button onclick="salvarGrade()" class="btn-primary" id="btnConfirmarGrade">
                         <i class="fa-solid fa-cloud-arrow-up"></i> Salvar no Supabase
@@ -761,7 +791,11 @@ foreach ($itens as $it) {
 
     async function salvarGrade() {
         const nome = document.getElementById('gradeNome').value.trim();
-        const desc = document.getElementById('gradeDesc').value.trim();
+        const orgao = document.getElementById('gradeOrgao').value.trim();
+        const objeto = document.getElementById('gradeObjeto').value.trim();
+        const numero_processo = document.getElementById('gradeProcesso').value.trim();
+        const data_sessao = document.getElementById('gradeDataSessao').value.trim();
+        
         const btn = document.getElementById('btnConfirmarGrade');
 
         if (!nome) {
@@ -783,6 +817,7 @@ foreach ($itens as $it) {
                 quantidade: item.quantidade,
                 unidade: item.unidade || 'UN',
                 valor_referencia: item.valor_referencia || 0,
+                melhor_lance: item.melhor_lance || 0,
                 status: item.status || 'N/A',
             };
         });
@@ -793,7 +828,10 @@ foreach ($itens as $it) {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     nome: nome,
-                    descricao: desc,
+                    orgao: orgao,
+                    objeto: objeto,
+                    numero_processo: numero_processo,
+                    data_sessao: data_sessao,
                     url_origem: document.getElementById('url').value,
                     processo_id: '<?php echo $extrator->extrairProcessoId($url) ?? ""; ?>',
                     itens: itensPayload,

@@ -132,11 +132,76 @@ class Extrator {
     }
     
     /**
+     * Busca itens via Licitanet (dados embutidos no HTML)
+     */
+    public function buscarLicitanet($url) {
+        $html = $this->fazerRequisicao($url);
+        if (!$html) return [];
+        $itensCompletos = [];
+        $meta = [
+            'orgao' => '',
+            'objeto' => '',
+            'numero_processo' => '',
+            'data_sessao' => '',
+        ];
+        
+        if (preg_match('/data-page="(.*?)"/', $html, $matches)) {
+            $jsonData = html_entity_decode($matches[1]);
+            $data = json_decode($jsonData, true);
+            
+            $items = $data['props']['disputeRoom']['items'] ?? [];
+            $statusGeral = $data['props']['disputeRoom']['status'] ?? 'N/A';
+            $messages = $data['props']['disputeRoom']['messages']['data'] ?? [];
+            
+            $meta['orgao'] = $data['props']['disputeRoom']['buyer'] ?? '';
+            $meta['objeto'] = $data['props']['disputeRoom']['description'] ?? '';
+            $meta['numero_processo'] = $data['props']['disputeRoom']['number'] ?? '';
+            $meta['data_sessao'] = $data['props']['disputeRoom']['startDate'] ?? '';
+
+            // Tenta achar o melhor lance nas mensagens (ACEITA pelo valor de R$ X)
+            $melhoresLances = [];
+            foreach ($messages as $msg) {
+                if (isset($msg['batch']) && isset($msg['message'])) {
+                    if (preg_match('/ACEITA pelo valor de R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
+                        $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
+                    } elseif (preg_match('/R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
+                        // Fallback se não tiver ACEITA, apenas pega o valor da mensagem (se não houver um melhor ainda)
+                        if (!isset($melhoresLances[$msg['batch']])) {
+                            $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
+                        }
+                    }
+                }
+            }
+            
+            foreach ($items as $it) {
+                $batch = $it['batch'] ?? '';
+                $itensCompletos[] = [
+                    'numero'           => $batch,
+                    'status'           => strtoupper($statusGeral),
+                    'descricao'        => $it['name'] ?? '',
+                    'quantidade'       => $it['quantity'] ?? '0',
+                    'unidade'          => $it['unit'] ?? 'Unid',
+                    'valor_referencia' => isset($it['estimatedValue']) ? $this->limparValor($it['estimatedValue']) : 0,
+                    'melhor_lance'     => $melhoresLances[$batch] ?? 0,
+                ];
+            }
+        }
+        
+        return ['itens' => $itensCompletos, 'meta' => $meta];
+    }
+
+    /**
      * Método principal: tenta API primeiro, fallback para scraping
      */
     public function extrair($url) {
         $resultado = [
             'itens'   => [],
+            'meta'    => [
+                'orgao' => '',
+                'objeto' => '',
+                'numero_processo' => '',
+                'data_sessao' => '',
+            ],
             'total'   => 0,
             'metodo'  => 'Nenhum',
             'erro'    => null,
@@ -146,12 +211,50 @@ class Extrator {
         $start = microtime(true);
         
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            $resultado['erro'] = 'URL inválida. Por favor, insira uma URL válida do Portal de Compras Públicas.';
+            $resultado['erro'] = 'URL inválida. Por favor, insira uma URL válida.';
+            return $resultado;
+        }
+
+        // Verifica se é Licitanet
+        if (strpos($url, 'licitanet.com.br') !== false) {
+            $dadosLicitanet = $this->buscarLicitanet($url);
+            if (!empty($dadosLicitanet['itens'])) {
+                $resultado['itens']  = $dadosLicitanet['itens'];
+                $resultado['total']  = count($dadosLicitanet['itens']);
+                $resultado['meta']   = $dadosLicitanet['meta'];
+                $resultado['metodo'] = 'Licitanet (JSON Embutido)';
+            } else {
+                $resultado['erro'] = 'Nenhum item encontrado no Licitanet. O portal pode ter alterado a estrutura.';
+            }
+            $resultado['tempo'] = round(microtime(true) - $start, 2);
             return $resultado;
         }
         
         // Tenta API primeiro (suporta paginação)
         $processoId = $this->extrairProcessoId($url);
+        
+        // Vamos tentar pegar os metadados do HTML primeiro (pois a API de itens não tem o órgão)
+        $htmlPortal = $this->fazerRequisicao($url);
+        if ($htmlPortal) {
+            $domMeta = new DOMDocument();
+            libxml_use_internal_errors(true);
+            $domMeta->loadHTML($htmlPortal);
+            libxml_clear_errors();
+            $xpathMeta = new DOMXPath($domMeta);
+            
+            // Órgão geralmente fica em algum h3 ou na área de informações
+            $orgaoNode = $xpathMeta->query("//h3[contains(@class, 'subtitle')]");
+            if ($orgaoNode->length > 0) {
+                $resultado['meta']['orgao'] = trim($orgaoNode->item(0)->textContent);
+            }
+            
+            // Número do processo
+            $procNode = $xpathMeta->query("//div[contains(text(), 'Processo')]/following-sibling::div");
+            if ($procNode->length > 0) {
+                $resultado['meta']['numero_processo'] = trim($procNode->item(0)->textContent);
+            }
+        }
+        
         if ($processoId) {
             $itens = $this->buscarViaAPI($processoId);
             if (!empty($itens)) {
@@ -187,6 +290,16 @@ class Extrator {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language: pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Connection: keep-alive',
+            'Upgrade-Insecure-Requests: 1',
+            'Sec-Fetch-Dest: document',
+            'Sec-Fetch-Mode: navigate',
+            'Sec-Fetch-Site: none',
+            'Sec-Fetch-User: ?1'
+        ]);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
