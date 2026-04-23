@@ -49,7 +49,13 @@ $meta = $resultado['meta'] ?? [
 // Estatísticas
 $valorTotalRef = 0;
 foreach ($itens as $it) {
-    $qtd = floatval(str_replace(',', '.', str_replace('.', '', $it['quantidade'] ?? '0')));
+    $qtdStr = $it['quantidade'] ?? '0';
+    // Detecta formato: se tem vírgula → BR (1.000,50); senão → internacional (60.00)
+    if (strpos($qtdStr, ',') !== false) {
+        $qtd = floatval(str_replace(',', '.', str_replace('.', '', $qtdStr)));
+    } else {
+        $qtd = floatval($qtdStr);
+    }
     $val = floatval($it['valor_referencia'] ?? 0);
     $valorTotalRef += ($qtd * $val);
 }
@@ -430,7 +436,10 @@ foreach ($itens as $it) {
                     <tbody>
                         <?php foreach ($itens as $idx => $item): ?>
                             <?php
-                                $qtd = floatval(str_replace(',', '.', str_replace('.', '', $item['quantidade'] ?? '0')));
+                                $qtdStr = $item['quantidade'] ?? '0';
+                                $qtd = (strpos($qtdStr, ',') !== false) 
+                                    ? floatval(str_replace(',', '.', str_replace('.', '', $qtdStr))) 
+                                    : floatval($qtdStr);
                                 $valUnit = floatval($item['valor_referencia'] ?? 0);
                                 $valMelhorLance = floatval($item['melhor_lance'] ?? 0);
                                 $valTotal = $qtd * $valUnit;
