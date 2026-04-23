@@ -8,7 +8,9 @@
  * - Utilizar a função PostgreSQL buscar_catmat_similar (pg_trgm)
  */
 
-require_once __DIR__ . '/../config/database.php';
+if (file_exists(__DIR__ . '/../config/database.php')) {
+    require_once __DIR__ . '/../config/database.php';
+}
 
 class CatmatMatcher {
     
@@ -16,8 +18,8 @@ class CatmatMatcher {
     private $supabaseKey;
     
     public function __construct() {
-        $this->supabaseUrl = SUPABASE_URL;
-        $this->supabaseKey = SUPABASE_KEY;
+        $this->supabaseUrl = defined('SUPABASE_URL') ? SUPABASE_URL : getenv('SUPABASE_URL');
+        $this->supabaseKey = defined('SUPABASE_KEY') ? SUPABASE_KEY : getenv('SUPABASE_KEY');
     }
     
     /**
