@@ -11,7 +11,9 @@
 
 class Extrator {
     
-    private $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    private $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+    private $lastHttpCode = 0;
+    private $lastError = '';
     private $apiBase = 'https://compras.api.portaldecompraspublicas.com.br/v2/licitacao';
     
     /**
@@ -224,7 +226,9 @@ class Extrator {
                 $resultado['meta']   = $dadosLicitanet['meta'];
                 $resultado['metodo'] = 'Licitanet (JSON Embutido)';
             } else {
-                $resultado['erro'] = 'Nenhum item encontrado no Licitanet. O portal pode ter alterado a estrutura.';
+                $statusMsg = $this->lastHttpCode ? " (HTTP {$this->lastHttpCode})" : "";
+                $resultado['erro'] = "Nenhum item encontrado no Licitanet{$statusMsg}. O portal pode ter bloqueado o acesso ou a estrutura mudou.";
+                if ($this->lastError) $resultado['erro'] .= " Detalhe: " . $this->lastError;
             }
             $resultado['tempo'] = round(microtime(true) - $start, 2);
             return $resultado;
@@ -283,27 +287,41 @@ class Extrator {
     // --- Métodos auxiliares ---
     
     private function fazerRequisicao($url) {
+        $this->lastHttpCode = 0;
+        $this->lastError = '';
+        
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_ENCODING, ""); // Suporta gzip, deflate, br automaticamente
         curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language: pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language: pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control: max-age=0',
             'Connection: keep-alive',
             'Upgrade-Insecure-Requests: 1',
+            'Sec-Ch-Ua: "Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'Sec-Ch-Ua-Mobile: ?0',
+            'Sec-Ch-Ua-Platform: "Windows"',
             'Sec-Fetch-Dest: document',
             'Sec-Fetch-Mode: navigate',
             'Sec-Fetch-Site: none',
             'Sec-Fetch-User: ?1'
         ]);
+        
         $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $this->lastHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        
+        if ($response === false) {
+            $this->lastError = curl_error($ch);
+        }
+        
         curl_close($ch);
-        return ($httpCode == 200) ? $response : null;
+        return ($this->lastHttpCode == 200) ? $response : null;
     }
     
     private function limparValor($value) {
