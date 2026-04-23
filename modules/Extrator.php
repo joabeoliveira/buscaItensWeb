@@ -140,6 +140,9 @@ class Extrator {
         $html = $this->fazerRequisicao($url);
         if (!$html) return [];
         
+        // DEBUG: Salva o HTML recebido para inspeção. 
+        file_put_contents(__DIR__ . '/../debug_licitanet.html', $html);
+
         $itensCompletos = [];
         $meta = [
             'orgao' => '',
@@ -148,16 +151,10 @@ class Extrator {
             'data_sessao' => '',
         ];
         
-        // Busca o atributo data-page de forma mais robusta (suporta arquivos gigantes)
         $jsonData = null;
-        if (strpos($html, 'data-page="') !== false) {
-            $parts = explode('data-page="', $html);
-            $subparts = explode('"', $parts[1]);
-            $jsonData = html_entity_decode($subparts[0]);
-        } elseif (strpos($html, "data-page='") !== false) {
-            $parts = explode("data-page='", $html);
-            $subparts = explode("'", $parts[1]);
-            $jsonData = html_entity_decode($subparts[0]);
+        // Regex robusta para capturar o atributo data-page
+        if (preg_match('/data-page\s*=\s*(["\'])(.*?)\1/s', $html, $matches)) {
+            $jsonData = html_entity_decode($matches[2]);
         }
 
         if ($jsonData) {
