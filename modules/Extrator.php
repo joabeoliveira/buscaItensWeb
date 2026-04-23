@@ -224,9 +224,10 @@ class Extrator {
 
     /**
      * Processa HTML colado manualmente pelo usuário (modo offline/bypass)
-     * Reutiliza a lógica de parsing do buscarLicitanet
+     * Usa explode (ultra-rápido) em vez de regex para parsing do data-page
      */
     public function processarHtmlColado($html) {
+        $start = microtime(true);
         $itensCompletos = [];
         $meta = [
             'orgao' => '',
@@ -235,74 +236,101 @@ class Extrator {
             'data_sessao' => '',
         ];
         
+        // Extração rápida via explode (evita backtracking catastrófico de regex em HTML gigante)
         $jsonData = null;
-        if (preg_match('/data-page\s*=\s*(["\'])(.*?)\1/s', $html, $matches)) {
-            $jsonData = html_entity_decode($matches[2]);
+        if (strpos($html, 'data-page="') !== false) {
+            $parts = explode('data-page="', $html, 2);
+            // O conteúdo do atributo usa &quot; para aspas internas,
+            // então a primeira " literal após data-page=" é o fechamento do atributo
+            $endPos = strpos($parts[1], '">');
+            if ($endPos !== false) {
+                $jsonData = html_entity_decode(substr($parts[1], 0, $endPos));
+            } else {
+                // Fallback: tenta com aspas simples
+                $subparts = explode('"', $parts[1], 2);
+                $jsonData = html_entity_decode($subparts[0]);
+            }
+        } elseif (strpos($html, "data-page='") !== false) {
+            $parts = explode("data-page='", $html, 2);
+            $subparts = explode("'", $parts[1], 2);
+            $jsonData = html_entity_decode($subparts[0]);
         }
 
-        if ($jsonData) {
-            $data = json_decode($jsonData, true);
-            
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return ['itens' => [], 'meta' => $meta, 'total' => 0, 'metodo' => 'HTML Colado', 'erro' => 'Erro JSON: ' . json_last_error_msg(), 'tempo' => 0];
-            }
-            
-            $room = $data['props']['disputeRoom'] ?? null;
-            if (!$room) {
-                return ['itens' => [], 'meta' => $meta, 'total' => 0, 'metodo' => 'HTML Colado', 'erro' => "Estrutura 'disputeRoom' não encontrada no HTML colado.", 'tempo' => 0];
-            }
+        if (!$jsonData) {
+            $tempo = round(microtime(true) - $start, 2);
+            return ['itens' => [], 'meta' => $meta, 'total' => 0, 'metodo' => 'HTML Colado', 'erro' => "Atributo 'data-page' não encontrado no HTML colado. Verifique se copiou o código-fonte completo (Ctrl+U).", 'tempo' => $tempo];
+        }
 
-            $itemsRaw = $room['items'] ?? [];
-            $items = isset($itemsRaw['data']) && is_array($itemsRaw['data']) ? $itemsRaw['data'] : $itemsRaw;
-            $statusGeral = $room['status'] ?? 'N/A';
-            $messages = $room['messages']['data'] ?? $room['messages'] ?? [];
-            
-            $meta['orgao'] = $room['buyer'] ?? '';
-            $meta['objeto'] = $room['description'] ?? '';
-            $meta['numero_processo'] = $room['number'] ?? '';
-            $meta['data_sessao'] = $room['startDate'] ?? '';
+        $data = json_decode($jsonData, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $tempo = round(microtime(true) - $start, 2);
+            return ['itens' => [], 'meta' => $meta, 'total' => 0, 'metodo' => 'HTML Colado', 'erro' => 'Erro JSON: ' . json_last_error_msg(), 'tempo' => $tempo];
+        }
+        
+        $room = $data['props']['disputeRoom'] ?? null;
+        if (!$room) {
+            $tempo = round(microtime(true) - $start, 2);
+            return ['itens' => [], 'meta' => $meta, 'total' => 0, 'metodo' => 'HTML Colado', 'erro' => "Estrutura 'disputeRoom' não encontrada no HTML colado.", 'tempo' => $tempo];
+        }
 
-            $melhoresLances = [];
-            if (is_array($messages)) {
-                foreach ($messages as $msg) {
-                    if (isset($msg['batch']) && isset($msg['message'])) {
-                        if (preg_match('/ACEITA pelo valor de R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
+        $itemsRaw = $room['items'] ?? [];
+        $items = isset($itemsRaw['data']) && is_array($itemsRaw['data']) ? $itemsRaw['data'] : $itemsRaw;
+        $statusGeral = $room['status'] ?? 'N/A';
+        
+        $meta['orgao'] = $room['buyer'] ?? '';
+        $meta['objeto'] = $room['description'] ?? '';
+        $meta['numero_processo'] = $room['number'] ?? '';
+        $meta['data_sessao'] = $room['startDate'] ?? '';
+
+        // Busca melhor lance nas mensagens disponíveis (podem estar paginadas)
+        $melhoresLances = [];
+        $messages = $room['messages']['data'] ?? $room['messages'] ?? [];
+        if (is_array($messages)) {
+            foreach ($messages as $msg) {
+                if (isset($msg['batch']) && isset($msg['message'])) {
+                    if (preg_match('/ACEITA pelo valor de R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
+                        $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
+                    } elseif (preg_match('/valor\s+de\s+R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
+                        if (!isset($melhoresLances[$msg['batch']])) {
                             $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
-                        } elseif (preg_match('/R\$\s*([\d\.,]+)/i', $msg['message'], $m)) {
-                            if (!isset($melhoresLances[$msg['batch']])) {
-                                $melhoresLances[$msg['batch']] = $this->limparValor($m[1]);
-                            }
                         }
                     }
                 }
             }
-            
-            if (is_array($items)) {
-                foreach ($items as $it) {
-                    $batch = $it['batch'] ?? ($it['numero'] ?? '');
-                    if (!$batch) continue;
-                    $itensCompletos[] = [
-                        'numero'           => $batch,
-                        'status'           => strtoupper($statusGeral),
-                        'descricao'        => $it['name'] ?? ($it['descricao'] ?? ''),
-                        'quantidade'       => $it['quantity'] ?? ($it['quantidade'] ?? '0'),
-                        'unidade'          => $it['unit'] ?? ($it['unidade'] ?? 'Unid'),
-                        'valor_referencia' => isset($it['estimatedValue']) ? $this->limparValor($it['estimatedValue']) : (isset($it['valorReferencia']) ? $this->limparValor($it['valorReferencia']) : 0),
-                        'melhor_lance'     => $melhoresLances[$batch] ?? 0,
-                    ];
-                }
-            }
-        } else {
-            return ['itens' => [], 'meta' => $meta, 'total' => 0, 'metodo' => 'HTML Colado', 'erro' => "Atributo 'data-page' não encontrado no HTML colado. Verifique se copiou o código-fonte completo (Ctrl+U).", 'tempo' => 0];
         }
         
+        if (is_array($items)) {
+            foreach ($items as $it) {
+                $batch = $it['batch'] ?? ($it['numero'] ?? '');
+                if (!$batch) continue;
+
+                // Tenta pegar o melhor lance: 1) das mensagens, 2) do campo bestBid/winnerValue, 3) zero
+                $melhorLance = $melhoresLances[$batch] 
+                    ?? (isset($it['bestBid']) ? $this->limparValor($it['bestBid']) : null)
+                    ?? (isset($it['winnerValue']) ? $this->limparValor($it['winnerValue']) : null)
+                    ?? 0;
+
+                $itensCompletos[] = [
+                    'numero'           => $batch,
+                    'status'           => strtoupper($statusGeral),
+                    'descricao'        => $it['name'] ?? ($it['descricao'] ?? ''),
+                    'quantidade'       => $it['quantity'] ?? ($it['quantidade'] ?? '0'),
+                    'unidade'          => $it['unit'] ?? ($it['unidade'] ?? 'Unid'),
+                    'valor_referencia' => isset($it['estimatedValue']) ? $this->limparValor($it['estimatedValue']) : (isset($it['valorReferencia']) ? $this->limparValor($it['valorReferencia']) : 0),
+                    'melhor_lance'     => $melhorLance,
+                ];
+            }
+        }
+        
+        $tempo = round(microtime(true) - $start, 2);
         return [
             'itens'  => $itensCompletos,
             'meta'   => $meta,
             'total'  => count($itensCompletos),
             'metodo' => 'Licitanet (HTML Colado)',
             'erro'   => null,
-            'tempo'  => 0,
+            'tempo'  => $tempo,
         ];
     }
 
