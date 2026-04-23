@@ -10,8 +10,10 @@ services:
       - "80"
     environment:
       - PYTHON_API_URL=http://python-api:5000/embed
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
     depends_on:
       - python-api
+      - flaresolverr
     networks:
       - licitador-network
 
@@ -24,6 +26,18 @@ services:
       - "5000"
     networks:
       - licitador-network
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - TIMEZONE=America/Sao_Paulo
+    expose:
+      - "8191"
+    networks:
+      - licitador-network
+    restart: unless-stopped
 
 networks:
   licitador-network:

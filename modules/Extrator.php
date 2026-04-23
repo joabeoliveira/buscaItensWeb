@@ -290,7 +290,14 @@ class Extrator {
         $this->lastHttpCode = 0;
         $this->lastError = '';
         
-        // Caminho para o arquivo de cookies (dentro da pasta tmp do sistema ou do projeto)
+        $flareUrl = getenv('FLARESOLVERR_URL');
+        
+        // Se o FlareSolverr estiver configurado, usamos ele para bypassar WAF
+        if ($flareUrl && strpos($url, 'licitanet.com.br') !== false) {
+            return $this->requisicaoViaFlareSolverr($flareUrl, $url);
+        }
+
+        // Caso contrário, segue o cURL normal (com suporte a cookies)
         $cookieFile = sys_get_temp_dir() . '/licitador_cookies.txt';
         
         $ch = curl_init();
@@ -302,7 +309,6 @@ class Extrator {
         curl_setopt($ch, CURLOPT_ENCODING, ""); 
         curl_setopt($ch, CURLOPT_USERAGENT, $this->userAgent);
         
-        // Gerenciamento de Cookies
         curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
         curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
         
@@ -331,6 +337,40 @@ class Extrator {
         
         curl_close($ch);
         return ($this->lastHttpCode == 200) ? $response : null;
+    }
+
+    /**
+     * Envia a requisição para o FlareSolverr (bypass de Cloudflare/WAF)
+     */
+    private function requisicaoViaFlareSolverr($flareUrl, $targetUrl) {
+        $postData = json_encode([
+            'cmd' => 'request.get',
+            'url' => $targetUrl,
+            'maxTimeout' => 60000
+        ]);
+
+        $ch = curl_init($flareUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 65);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $response) {
+            $data = json_decode($response, true);
+            if (isset($data['solution']['response'])) {
+                $this->lastHttpCode = 200;
+                return $data['solution']['response'];
+            }
+        }
+
+        $this->lastHttpCode = $httpCode;
+        $this->lastError = "FlareSolverr falhou ao processar a página.";
+        return null;
     }
     
     private function limparValor($value) {
