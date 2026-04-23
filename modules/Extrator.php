@@ -320,15 +320,35 @@ class Extrator {
         $this->lastHttpCode = 0;
         $this->lastError = '';
         
-        $flareUrl = getenv('FLARESOLVERR_URL');
+        $googleProxy = getenv('GOOGLE_PROXY_URL') ?: 'https://script.google.com/macros/s/AKfycbyQqa8SgCCCEgEpRKqvcb-c0Uyf9Z7SOGsyI367-qFhtn-myAQI3aKHUi4u7W-rFagRbQ/exec';
         
-        // Se o FlareSolverr estiver configurado, usamos ele para bypassar WAF
-        if ($flareUrl && strpos($url, 'licitanet.com.br') !== false) {
-            return $this->requisicaoViaFlareSolverr($flareUrl, $url);
+        // Se for Licitanet, usamos o túnel do Google para evitar o bloqueio 403
+        if (strpos($url, 'licitanet.com.br') !== false && $googleProxy) {
+            $proxyUrl = $googleProxy . '?url=' . urlencode($url);
+            
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $proxyUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+            $response = curl_exec($ch);
+            $this->lastHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($this->lastHttpCode == 200 && $response) {
+                // Se o Google retornou o JSON do Inertia direto
+                if (strpos($response, '{"props":') === 0) {
+                    return '<div id="app" data-page=\'' . htmlspecialchars($response) . '\'></div>';
+                }
+                return $response;
+            }
+            
+            // Se o proxy do Google falhar, tentamos o caminho normal como fallback
         }
 
-        // Caso contrário, segue o cURL normal (com suporte a cookies)
-        $cookieFile = sys_get_temp_dir() . '/licitador_cookies.txt';
+        $flareUrl = getenv('FLARESOLVERR_URL');
+        // ... resto do código cURL normal ...
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
