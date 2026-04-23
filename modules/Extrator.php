@@ -139,6 +139,7 @@ class Extrator {
     public function buscarLicitanet($url) {
         $html = $this->fazerRequisicao($url);
         if (!$html) return [];
+        
         $itensCompletos = [];
         $meta = [
             'orgao' => '',
@@ -147,18 +148,40 @@ class Extrator {
             'data_sessao' => '',
         ];
         
-        if (preg_match('/data-page="(.*?)"/', $html, $matches)) {
-            $jsonData = html_entity_decode($matches[1]);
+        // Busca o atributo data-page de forma mais robusta (suporta arquivos gigantes)
+        $jsonData = null;
+        if (strpos($html, 'data-page="') !== false) {
+            $parts = explode('data-page="', $html);
+            $subparts = explode('"', $parts[1]);
+            $jsonData = html_entity_decode($subparts[0]);
+        } elseif (strpos($html, "data-page='") !== false) {
+            $parts = explode("data-page='", $html);
+            $subparts = explode("'", $parts[1]);
+            $jsonData = html_entity_decode($subparts[0]);
+        }
+
+        if ($jsonData) {
             $data = json_decode($jsonData, true);
             
-            $items = $data['props']['disputeRoom']['items'] ?? [];
-            $statusGeral = $data['props']['disputeRoom']['status'] ?? 'N/A';
-            $messages = $data['props']['disputeRoom']['messages']['data'] ?? [];
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->lastError = "Erro ao processar JSON da Licitanet: " . json_last_error_msg();
+                return [];
+            }
             
-            $meta['orgao'] = $data['props']['disputeRoom']['buyer'] ?? '';
-            $meta['objeto'] = $data['props']['disputeRoom']['description'] ?? '';
-            $meta['numero_processo'] = $data['props']['disputeRoom']['number'] ?? '';
-            $meta['data_sessao'] = $data['props']['disputeRoom']['startDate'] ?? '';
+            $room = $data['props']['disputeRoom'] ?? null;
+            if (!$room) {
+                $this->lastError = "Estrutura 'disputeRoom' não encontrada no JSON.";
+                return [];
+            }
+
+            $items = $room['items'] ?? [];
+            $statusGeral = $room['status'] ?? 'N/A';
+            $messages = $room['messages']['data'] ?? [];
+            
+            $meta['orgao'] = $room['buyer'] ?? '';
+            $meta['objeto'] = $room['description'] ?? '';
+            $meta['numero_processo'] = $room['number'] ?? '';
+            $meta['data_sessao'] = $room['startDate'] ?? '';
 
             // Tenta achar o melhor lance nas mensagens (ACEITA pelo valor de R$ X)
             $melhoresLances = [];
