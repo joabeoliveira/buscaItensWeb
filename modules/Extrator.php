@@ -371,12 +371,21 @@ class Extrator {
 
     /**
      * Envia a requisição para o FlareSolverr (bypass de Cloudflare/WAF)
+     * Agora com o 'Inertia Hack' para tentar burlar o bloqueio 403
      */
     private function requisicaoViaFlareSolverr($flareUrl, $targetUrl) {
+        // Tentamos fingir que somos uma navegação interna do Inertia.js
+        // Isso muitas vezes pula o bloqueio de firewall da página principal
         $postData = json_encode([
             'cmd' => 'request.get',
             'url' => $targetUrl,
-            'maxTimeout' => 60000
+            'maxTimeout' => 60000,
+            'headers' => [
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => '6a74cf2f574f429f', // Versão comum ou detectada
+                'X-Requested-With' => 'XMLHttpRequest',
+                'Accept' => 'text/html, application/xhtml+xml, application/xml;q=0.9, image/webp, */*;q=0.8'
+            ]
         ]);
 
         $ch = curl_init($flareUrl);
@@ -392,14 +401,27 @@ class Extrator {
 
         if ($httpCode === 200 && $response) {
             $data = json_decode($response, true);
+            $targetStatus = $data['solution']['status'] ?? 200;
+            
+            // Atualiza o status real (ex: se a Licitanet mandou 403, reportamos 403)
+            $this->lastHttpCode = $targetStatus;
+
             if (isset($data['solution']['response'])) {
-                $this->lastHttpCode = 200;
-                return $data['solution']['response'];
+                $content = $data['solution']['response'];
+                
+                // Se o Inertia responder com JSON direto (devido ao header X-Inertia),
+                // o conteúdo pode já ser o JSON que queremos
+                if (strpos($content, '{"props":') === 0 || strpos($content, '{"component":') === 0) {
+                    // Criamos um "fake" data-page para o resto do código funcionar
+                    return '<div id="app" data-page=\'' . htmlspecialchars($content) . '\'></div>';
+                }
+                
+                return $content;
             }
         }
 
         $this->lastHttpCode = $httpCode;
-        $this->lastError = "FlareSolverr falhou ao processar a página.";
+        $this->lastError = "FlareSolverr falhou ou o portal bloqueou a requisição.";
         return null;
     }
     
