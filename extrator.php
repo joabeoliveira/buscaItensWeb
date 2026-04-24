@@ -309,7 +309,7 @@ foreach ($itens as $it) {
                         </ol>
                         <div style="position:relative;">
                             <pre id="consoleScript" style="background:#000;color:#0f0;padding:12px;border-radius:8px;font-size:0.72rem;max-height:120px;overflow:auto;cursor:pointer;border:1px solid var(--border);" onclick="copiarScript()" title="Clique para copiar">(function(){var d=JSON.parse(document.getElementById('app').getAttribute('data-page'));var r=d.props.disputeRoom;var items=r.items.data||r.items;var lances=[];document.querySelectorAll('p').forEach(function(p){if(p.textContent.trim()==='Melhor Lance'){var v=p.nextElementSibling;if(v)lances.push(v.textContent.trim());}});var result=items.map(function(it,i){return{numero:it.batch,descricao:it.name,quantidade:it.quantity,unidade:it.unit,valor_referencia:it.estimatedValue,melhor_lance:lances[i]||'R$ 0,00',status:r.status};});var out=JSON.stringify({tipo:'licitanet_console',meta:{orgao:r.buyer,objeto:r.description,numero_processo:r.number,data_sessao:r.startDate},itens:result});copy(out);console.log('✅ '+result.length+' itens copiados! Cole no Licitador Pro (Ctrl+V).');})();</pre>
-                            <button type="button" onclick="copiarScript()" style="position:absolute;top:8px;right:8px;background:var(--primary);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                            <button type="button" id="btnCopiarScript" onclick="copiarScript()" style="position:absolute;top:8px;right:8px;background:var(--primary);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
                                 <i class="fa-solid fa-copy"></i> Copiar Script
                             </button>
                         </div>
@@ -531,11 +531,16 @@ foreach ($itens as $it) {
 
     function copiarScript() {
         const script = document.getElementById('consoleScript').textContent;
+        const btn = document.getElementById('btnCopiarScript');
         navigator.clipboard.writeText(script).then(() => {
-            const btn = event.currentTarget;
-            const orig = btn.innerHTML;
             btn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado!';
-            setTimeout(() => { btn.innerHTML = orig; }, 2000);
+            btn.style.background = 'var(--accent-green)';
+            btn.style.color = '#000';
+            setTimeout(() => { 
+                btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copiar Script'; 
+                btn.style.background = 'var(--primary)';
+                btn.style.color = '#fff';
+            }, 2000);
         });
     }
 
